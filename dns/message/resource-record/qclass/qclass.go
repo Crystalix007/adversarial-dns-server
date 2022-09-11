@@ -9,3 +9,20 @@ const (
 	HS  QClass = 4
 	ALL QClass = 255
 )
+
+func (q QClass) String() string {
+	switch q {
+	case IN:
+		return "Internet"
+	case CS:
+		return "CSNET"
+	case CH:
+		return "CHAOS"
+	case HS:
+		return "Hesiod"
+	case ALL:
+		return "All"
+	}
+
+	panic("Unexpected QClass")
+}

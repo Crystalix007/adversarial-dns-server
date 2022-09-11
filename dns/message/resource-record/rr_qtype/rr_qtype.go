@@ -1,6 +1,8 @@
 package rrqtype
 
-type RRQType int8
+import "fmt"
+
+type RRQType uint8
 
 const (
 	A     RRQType = 1
@@ -24,3 +26,50 @@ const (
 	MAILA RRQType = 254
 	ALL   RRQType = 255
 )
+
+func (rrq RRQType) String() string {
+	switch rrq {
+	case A:
+		return "A"
+	case NS:
+		return "NS"
+	case MD:
+		return "MD"
+	case MF:
+		return "MF"
+	case CNAME:
+		return "CNAME"
+	case SOA:
+		return "SOA"
+	case MB:
+		return "MB"
+	case MG:
+		return "MG"
+	case MR:
+		return "MR"
+	case NULL:
+		return "NULL"
+	case WKS:
+		return "WKS"
+	case PTR:
+		return "PTR"
+	case HINFO:
+		return "HINFO"
+	case MINFO:
+		return "MINFO"
+	case MX:
+		return "MX"
+	case TXT:
+		return "TXT"
+	case AXFR:
+		return "AXFR"
+	case MAILB:
+		return "MAILB"
+	case MAILA:
+		return "MAILA"
+	case ALL:
+		return "ALL"
+	}
+
+	panic(fmt.Sprintf("Unknown RRQType: %d", rrq))
+}

@@ -75,7 +75,7 @@ func (h Header_Flags) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 }
 
 func (h Header) MarshalLogObject(enc zapcore.ObjectEncoder) error {
-	enc.AddInt16("ID", int16(h.ID.ID))
+	enc.AddUint16("ID", h.ID.ID)
 
 	err := enc.AddObject("Flags", h.Flags)
 	if err != nil {
