@@ -1,6 +1,7 @@
 package question
 
 import (
+	"errors"
 	"fmt"
 
 	namelabel "github.com/Crystalix007/adversarial-dns-server/dns/message/resource-record/name_label"
@@ -8,6 +9,8 @@ import (
 	rrqtype "github.com/Crystalix007/adversarial-dns-server/dns/message/resource-record/rr_qtype"
 	"go.uber.org/zap/zapcore"
 )
+
+var ErrTruncatedQuestion = errors.New("dns/message/question: truncated question data")
 
 type Question struct {
 	QName  namelabel.NameLabels
@@ -48,10 +51,14 @@ func decodeQuestion(b []byte) (*Question, []byte, error) {
 		remainingBytes = append(remainingBytes, b[256:]...)
 	}
 
-	q.QType = rrqtype.RRQType(remainingBytes[0])
-	q.QClass = qclass.QClass(remainingBytes[1])
+	if len(remainingBytes) < 4 {
+		return nil, nil, ErrTruncatedQuestion
+	}
 
-	return &q, remainingBytes[2:], nil
+	q.QType = rrqtype.RRQType(remainingBytes[0]<<1 + remainingBytes[1])
+	q.QClass = qclass.QClass(remainingBytes[2]<<1 + remainingBytes[3])
+
+	return &q, remainingBytes[4:], nil
 }
 
 func (q Question) MarshalLogObject(enc zapcore.ObjectEncoder) error {

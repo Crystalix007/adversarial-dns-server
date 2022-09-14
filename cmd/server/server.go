@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"net"
 
 	"github.com/Crystalix007/adversarial-dns-server/dns/message"
@@ -20,7 +19,7 @@ func (s *Server) Start() {
 
 	connection, err := net.ListenUDP("udp", &s.LAddr)
 	if err != nil {
-		fmt.Printf("cmd/server: failed to start UDP socket: %v", err)
+		s.Log.Error("cmd/server: failed to start UDP socket: %v", zap.Error(err))
 		return
 	}
 	defer connection.Close()
@@ -30,7 +29,7 @@ func (s *Server) Start() {
 	for {
 		n, addr, err := connection.ReadFromUDP(buffer)
 		if err != nil {
-			fmt.Printf("cmd/server: failed to accept connection")
+			s.Log.Warn("cmd/server: failed to accept connection")
 			continue
 		}
 
@@ -41,7 +40,7 @@ func (s *Server) Start() {
 func (s *Server) handleDNSReq(conn *net.UDPConn, addr net.Addr, b []byte) {
 	m, err := message.Decode(b)
 	if err != nil {
-		fmt.Printf("cmd/server: failed to decode UDP packet: %v", err)
+		s.Log.Error("cmd/server: failed to decode UDP packet: %v", zap.Error(err))
 		return
 	}
 

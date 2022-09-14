@@ -1,6 +1,6 @@
 package qclass
 
-type QClass uint8
+type QClass uint16
 
 const (
 	IN  QClass = 1

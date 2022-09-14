@@ -26,15 +26,36 @@ func Decode(b []byte) (*Message, error) {
 	var m Message
 	m.Header = *h
 
-	q, _, err := question.Decode(b[header.HeaderSize:], m.Header.QDCount.QDCount)
+	q, b, err := question.Decode(b[header.HeaderSize:], m.Header.QDCount.QDCount)
 	if err != nil {
 		return nil, err
 	}
 
 	m.Question = q
 
-	// if len(remainingBytes) != 0 {
-	// 	return nil, fmt.Errorf("dns/message: failed to decode message, had %d bytes remaining", len(remainingBytes))
+	rrs, b, err := resourcerecord.Decode(b, m.Header.ANCount.ANCount)
+	if err != nil {
+		return nil, err
+	}
+
+	m.Answer = rrs
+
+	rrs, b, err = resourcerecord.Decode(b, m.Header.NSCount.NSCount)
+	if err != nil {
+		return nil, err
+	}
+
+	m.Authority = rrs
+
+	rrs, b, err = resourcerecord.Decode(b, m.Header.ARCount.ARCount)
+	if err != nil {
+		return nil, err
+	}
+
+	m.Additional = rrs
+
+	// if len(b) != 0 {
+	// 	return nil, fmt.Errorf("dns/message: failed to decode message, had %d bytes remaining", len(b))
 	// }
 
 	return &m, nil
@@ -53,23 +74,23 @@ func (m Message) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 	}
 
 	// TODO: Enable these fields.
-	// err = enc.AddArray("Answer", m.Answer)
+	err = enc.AddArray("Answer", m.Answer)
 
-	// if err != nil {
-	// 	return fmt.Errorf("dns/message: failed to encode Answer: %w", err)
-	// }
+	if err != nil {
+		return fmt.Errorf("dns/message: failed to encode Answer: %w", err)
+	}
 
-	// err = enc.AddArray("Authority", m.Authority)
+	err = enc.AddArray("Authority", m.Authority)
 
-	// if err != nil {
-	// 	return fmt.Errorf("dns/message: failed to encode Authority: %w", err)
-	// }
+	if err != nil {
+		return fmt.Errorf("dns/message: failed to encode Authority: %w", err)
+	}
 
-	// err = enc.AddArray("Additional", m.Additional)
+	err = enc.AddArray("Additional", m.Additional)
 
-	// if err != nil {
-	// 	return fmt.Errorf("dns/message: failed to encode Additional: %w", err)
-	// }
+	if err != nil {
+		return fmt.Errorf("dns/message: failed to encode Additional: %w", err)
+	}
 
 	return nil
 }

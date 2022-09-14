@@ -25,19 +25,28 @@ type RR_Class struct {
 }
 
 type RR_TTL struct {
-	TTL int32 `bitfield:"32"`
+	TTL uint32 `bitfield:"32"`
 }
 
 type RR_RDLength struct {
 	RDLength uint16 `bitfield:"16"`
 }
 
-type RR_Internal struct {
+type _RR_Internal struct {
 	Type     RR_Type     `word:"16"`
 	Class    RR_Class    `word:"16"`
 	TTL      RR_TTL      `word:"32"`
 	RDLength RR_RDLength `word:"16"`
 }
+
+type RR_Internal struct {
+	Type     rrtype.RRType
+	Class    class.Class
+	TTL      int32
+	RDLength uint16
+}
+
+const RR_Internal_Length = 10
 
 type RR struct {
 	Name namelabel.NameLabels
@@ -45,10 +54,28 @@ type RR struct {
 	RData []byte
 }
 
-func Decode(b []byte) (*RR, error) {
+type RRs []RR
+
+func Decode(b []byte, rrCount uint16) (RRs, []byte, error) {
+	rrs := RRs{}
+
+	for i := 0; i < int(rrCount); i++ {
+		rr, remainingBytes, err := decodeRR(b)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		rrs = append(rrs, *rr)
+		b = remainingBytes
+	}
+
+	return rrs, b, nil
+}
+
+func decodeRR(b []byte) (*RR, []byte, error) {
 	names, remainingBytes, err := namelabel.Decode(b[:256])
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Append any bytes we limited from the name decoding.
@@ -56,20 +83,37 @@ func Decode(b []byte) (*RR, error) {
 		remainingBytes = append(remainingBytes, b[256:]...)
 	}
 
+	// If we don't have enough bytes to decode the internal data structure,
+	// return error.
+	if len(remainingBytes) < RR_Internal_Length {
+		return nil, nil, ErrMissingData
+	}
+
 	rr := RR{
 		Name: names,
 	}
 
-	err = binary.Unmarshal(remainingBytes[:10], &rr.RR_Internal)
+	var _rrInternal _RR_Internal
+
+	err = binary.Unmarshal(remainingBytes[:RR_Internal_Length], &_rrInternal)
 
 	if err != nil {
-		return nil, fmt.Errorf("dns/packet/resource-record: couldn't unmarshal RR: %w", err)
+		return nil, nil, fmt.Errorf("dns/packet/resource-record: couldn't unmarshal RR: %w", err)
 	}
 
-	// TODO: Validate data length.
-	rr.RData = remainingBytes[:10]
+	rr.RR_Internal = _rrInternal.RR_Internal()
 
-	return &rr, nil
+	remainingBytes = remainingBytes[RR_Internal_Length:]
+
+	// We don't have enough to decode the RData field.
+	if len(remainingBytes) < int(rr.RDLength) {
+		return nil, nil, ErrMissingRData
+	}
+
+	rr.RData = remainingBytes[:rr.RDLength]
+	remainingBytes = remainingBytes[rr.RDLength:]
+
+	return &rr, remainingBytes, nil
 }
 
 func (r RR) MarshalLogObject(enc zapcore.ObjectEncoder) error {
@@ -78,15 +122,13 @@ func (r RR) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 		return fmt.Errorf("dns/message/resource-record: failed to encode Name: %w", err)
 	}
 
-	enc.AddString("Type", r.Type.Type.String())
-	enc.AddString("Class", r.Class.Class.String())
-	enc.AddInt32("TTL", r.TTL.TTL)
-	enc.AddUint16("RDLength", r.RDLength.RDLength)
+	enc.AddString("Type", r.Type.String())
+	enc.AddString("Class", r.Class.String())
+	enc.AddInt32("TTL", r.TTL)
+	enc.AddUint16("RDLength", r.RDLength)
 
 	return err
 }
-
-type RRs []RR
 
 func (rrs RRs) MarshalLogArray(enc zapcore.ArrayEncoder) error {
 	for _, rr := range rrs {
@@ -97,4 +139,13 @@ func (rrs RRs) MarshalLogArray(enc zapcore.ArrayEncoder) error {
 	}
 
 	return nil
+}
+
+func (rr _RR_Internal) RR_Internal() RR_Internal {
+	return RR_Internal{
+		Type:     rr.Type.Type,
+		Class:    rr.Class.Class,
+		TTL:      int32(rr.TTL.TTL),
+		RDLength: rr.RDLength.RDLength,
+	}
 }

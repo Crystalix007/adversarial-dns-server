@@ -1,6 +1,8 @@
 package class
 
-type Class uint8
+import "fmt"
+
+type Class uint16
 
 const (
 	IN Class = 1
@@ -21,5 +23,6 @@ func (c Class) String() string {
 		return "Hesiod"
 	}
 
-	panic("Unexpected Class")
+	return fmt.Sprintf("Unknown (%d)", c)
+	// panic("Unexpected Class")
 }
