@@ -3,6 +3,7 @@ package main
 import (
 	"net"
 
+	"github.com/Crystalix007/adversarial-dns-server/buffer"
 	"github.com/Crystalix007/adversarial-dns-server/dns/message"
 	"go.uber.org/zap"
 )
@@ -38,7 +39,7 @@ func (s *Server) Start() {
 }
 
 func (s *Server) handleDNSReq(conn *net.UDPConn, addr net.Addr, b []byte) {
-	m, err := message.Decode(b)
+	m, err := message.Decode(buffer.NewFromBytes(b))
 	if err != nil {
 		s.Log.Error("cmd/server: failed to decode UDP packet: %v", zap.Error(err))
 		return

@@ -3,6 +3,7 @@ package header
 import (
 	"fmt"
 
+	"github.com/Crystalix007/adversarial-dns-server/buffer"
 	"github.com/Crystalix007/adversarial-dns-server/dns/message/header/opcode"
 	"github.com/Crystalix007/adversarial-dns-server/dns/message/header/rcode"
 	"github.com/encodingx/binary"
@@ -51,9 +52,9 @@ type Header struct {
 
 const HeaderSize = 12
 
-func Decode(b []byte) (*Header, error) {
+func Decode(b *buffer.Buffer) (*Header, error) {
 	var h Header
-	err := binary.Unmarshal(b, &h)
+	err := binary.Unmarshal(b.Dequeue(HeaderSize), &h)
 	if err != nil {
 		return nil, fmt.Errorf("dns/message/header: failed to decode header: %w", err)
 	}

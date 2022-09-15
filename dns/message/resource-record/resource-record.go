@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Crystalix007/adversarial-dns-server/buffer"
 	class "github.com/Crystalix007/adversarial-dns-server/dns/message/resource-record/class"
 	namelabel "github.com/Crystalix007/adversarial-dns-server/dns/message/resource-record/name_label"
 	rrtype "github.com/Crystalix007/adversarial-dns-server/dns/message/resource-record/rr_type"
@@ -56,37 +57,34 @@ type RR struct {
 
 type RRs []RR
 
-func Decode(b []byte, rrCount uint16) (RRs, []byte, error) {
+func Decode(b *buffer.Buffer, rrCount uint16) (RRs, error) {
 	rrs := RRs{}
 
 	for i := 0; i < int(rrCount); i++ {
-		rr, remainingBytes, err := decodeRR(b)
+		rr, err := decodeRR(b)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		rrs = append(rrs, *rr)
-		b = remainingBytes
 	}
 
-	return rrs, b, nil
+	return rrs, nil
 }
 
-func decodeRR(b []byte) (*RR, []byte, error) {
-	names, remainingBytes, err := namelabel.Decode(b[:256])
+func decodeRR(b *buffer.Buffer) (*RR, error) {
+	names, remainingBytes, err := namelabel.Decode(b.Dequeue(256))
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Append any bytes we limited from the name decoding.
-	if len(b) >= 256 {
-		remainingBytes = append(remainingBytes, b[256:]...)
-	}
+	b.Prepend(remainingBytes)
 
 	// If we don't have enough bytes to decode the internal data structure,
 	// return error.
-	if len(remainingBytes) < RR_Internal_Length {
-		return nil, nil, ErrMissingData
+	if b.Length() < RR_Internal_Length {
+		return nil, ErrMissingData
 	}
 
 	rr := RR{
@@ -95,25 +93,22 @@ func decodeRR(b []byte) (*RR, []byte, error) {
 
 	var _rrInternal _RR_Internal
 
-	err = binary.Unmarshal(remainingBytes[:RR_Internal_Length], &_rrInternal)
+	err = binary.Unmarshal(b.Dequeue(RR_Internal_Length), &_rrInternal)
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("dns/packet/resource-record: couldn't unmarshal RR: %w", err)
+		return nil, fmt.Errorf("dns/packet/resource-record: couldn't unmarshal RR: %w", err)
 	}
 
 	rr.RR_Internal = _rrInternal.RR_Internal()
 
-	remainingBytes = remainingBytes[RR_Internal_Length:]
-
 	// We don't have enough to decode the RData field.
-	if len(remainingBytes) < int(rr.RDLength) {
-		return nil, nil, ErrMissingRData
+	if b.Length() < int(rr.RDLength) {
+		return nil, ErrMissingRData
 	}
 
-	rr.RData = remainingBytes[:rr.RDLength]
-	remainingBytes = remainingBytes[rr.RDLength:]
+	rr.RData = b.Dequeue(int(rr.RDLength))
 
-	return &rr, remainingBytes, nil
+	return &rr, nil
 }
 
 func (r RR) MarshalLogObject(enc zapcore.ObjectEncoder) error {

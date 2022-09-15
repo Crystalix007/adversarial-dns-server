@@ -3,6 +3,7 @@ package message
 import (
 	"fmt"
 
+	"github.com/Crystalix007/adversarial-dns-server/buffer"
 	"github.com/Crystalix007/adversarial-dns-server/dns/message/header"
 	"github.com/Crystalix007/adversarial-dns-server/dns/message/question"
 	resourcerecord "github.com/Crystalix007/adversarial-dns-server/dns/message/resource-record"
@@ -17,8 +18,8 @@ type Message struct {
 	Additional resourcerecord.RRs
 }
 
-func Decode(b []byte) (*Message, error) {
-	h, err := header.Decode(b[:header.HeaderSize])
+func Decode(b buffer.Buffer) (*Message, error) {
+	h, err := header.Decode(&b)
 	if err != nil {
 		return nil, err
 	}
@@ -26,37 +27,37 @@ func Decode(b []byte) (*Message, error) {
 	var m Message
 	m.Header = *h
 
-	q, b, err := question.Decode(b[header.HeaderSize:], m.Header.QDCount.QDCount)
+	q, err := question.Decode(&b, m.Header.QDCount.QDCount)
 	if err != nil {
 		return nil, err
 	}
 
 	m.Question = q
 
-	rrs, b, err := resourcerecord.Decode(b, m.Header.ANCount.ANCount)
+	rrs, err := resourcerecord.Decode(&b, m.Header.ANCount.ANCount)
 	if err != nil {
 		return nil, err
 	}
 
 	m.Answer = rrs
 
-	rrs, b, err = resourcerecord.Decode(b, m.Header.NSCount.NSCount)
+	rrs, err = resourcerecord.Decode(&b, m.Header.NSCount.NSCount)
 	if err != nil {
 		return nil, err
 	}
 
 	m.Authority = rrs
 
-	rrs, b, err = resourcerecord.Decode(b, m.Header.ARCount.ARCount)
+	rrs, err = resourcerecord.Decode(&b, m.Header.ARCount.ARCount)
 	if err != nil {
 		return nil, err
 	}
 
 	m.Additional = rrs
 
-	// if len(b) != 0 {
-	// 	return nil, fmt.Errorf("dns/message: failed to decode message, had %d bytes remaining", len(b))
-	// }
+	if b.Length() != 0 {
+		return nil, fmt.Errorf("dns/message: failed to decode message, had %d bytes remaining", b.Length())
+	}
 
 	return &m, nil
 }

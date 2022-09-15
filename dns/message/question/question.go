@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Crystalix007/adversarial-dns-server/buffer"
 	namelabel "github.com/Crystalix007/adversarial-dns-server/dns/message/resource-record/name_label"
 	"github.com/Crystalix007/adversarial-dns-server/dns/message/resource-record/qclass"
 	rrqtype "github.com/Crystalix007/adversarial-dns-server/dns/message/resource-record/rr_qtype"
@@ -20,26 +21,25 @@ type Question struct {
 
 type Questions []Question
 
-func Decode(b []byte, qdCount uint16) (Questions, []byte, error) {
+func Decode(b *buffer.Buffer, qdCount uint16) (Questions, error) {
 	qs := Questions{}
 
 	for i := uint16(0); i < qdCount; i++ {
-		q, remainingBytes, err := decodeQuestion(b)
+		q, err := decodeQuestion(b)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		qs = append(qs, *q)
-		b = remainingBytes
 	}
 
-	return qs, b, nil
+	return qs, nil
 }
 
-func decodeQuestion(b []byte) (*Question, []byte, error) {
-	names, remainingBytes, err := namelabel.Decode(b[:256])
+func decodeQuestion(b *buffer.Buffer) (*Question, error) {
+	names, remainingBytes, err := namelabel.Decode(b.Dequeue(256))
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	q := Question{
@@ -47,18 +47,18 @@ func decodeQuestion(b []byte) (*Question, []byte, error) {
 	}
 
 	// Append any decode-limited bytes
-	if len(b) >= 256 {
-		remainingBytes = append(remainingBytes, b[256:]...)
+	b.Prepend(remainingBytes)
+
+	if b.Length() < 4 {
+		return nil, ErrTruncatedQuestion
 	}
 
-	if len(remainingBytes) < 4 {
-		return nil, nil, ErrTruncatedQuestion
-	}
+	qtypeBytes := b.Dequeue(2)
+	q.QType = rrqtype.RRQType(qtypeBytes[0]<<1 + qtypeBytes[1])
+	qclassBytes := b.Dequeue(2)
+	q.QClass = qclass.QClass(qclassBytes[0]<<1 + qclassBytes[1])
 
-	q.QType = rrqtype.RRQType(remainingBytes[0]<<1 + remainingBytes[1])
-	q.QClass = qclass.QClass(remainingBytes[2]<<1 + remainingBytes[3])
-
-	return &q, remainingBytes[4:], nil
+	return &q, nil
 }
 
 func (q Question) MarshalLogObject(enc zapcore.ObjectEncoder) error {
